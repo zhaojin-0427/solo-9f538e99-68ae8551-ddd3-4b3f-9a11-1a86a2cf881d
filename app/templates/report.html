@@ -38,6 +38,27 @@
 </section>
 
 <section class="card">
+  <h3>注释回填（固定依据：{{ payload.chrom }} ｜ FASTA v{{ report.fasta_version }}）</h3>
+  {% if ann_status and ann_status[0] == ann_status[1] %}
+    <p>
+      <span class="badge ok">全部 {{ ann_status[1] }} 个标准位点已有注释</span>
+      <a href="{{ url_for('annotations.download_annotation', bid=batch.id, rid=report.id) }}">
+        下载按源 ID 展开的注释表（CSV）</a>
+    </p>
+  {% else %}
+    <p>
+      <span class="badge bad">注释缺口：{{ ann_status[0] }} / {{ ann_status[1] }} 个位点已覆盖</span>
+      全部位点补齐后才能下载展开表。
+    </p>
+  {% endif %}
+  <p>
+    <a href="{{ url_for('annotations.annotation_page', bid=batch.id, rid=report.id) }}">
+      前往注释导入页（按 CHROM/POS/REF/ALT 匹配标准位点）</a>
+    {% if not is_current %}<span class="hint">｜本报告已过期，注释页固定沿用本报告的原始依据，可查但不影响当前结论。</span>{% endif %}
+  </p>
+</section>
+
+<section class="card">
   <h3>源行 → 标准化对照（{{ payload.rows|length }} 行）</h3>
   <table>
     <tr><th>源 ID</th><th>文件行</th><th>原始 POS/REF/ALT</th><th>类型</th><th>标准化 POS/REF/ALT</th><th>归并组</th></tr>

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}报告 #{{ report.id }} 注释 · 批次 #{{ batch.id }}{% endblock %}
+{% block content %}
+<h2>注释导入 · 报告 #{{ report.id }}（批次 #{{ batch.id }}：{{ batch.name }}）</h2>
+<p>
+  固定依据：FASTA v{{ report.fasta_version }} / CSV v{{ report.csv_version }} ｜
+  染色体 {{ payload.chrom }}（{{ payload.ref_len }} bp）｜ 生成于 {{ report.created_at }} UTC
+  {% if is_current %}<span class="badge ok">当前结论</span>
+  {% else %}<span class="badge old">已过期 · 当前版本为 FASTA v{{ fv }} / CSV v{{ cv }}，本页固定依据不变</span>{% endif %}
+</p>
+<p><a href="{{ url_for('main.report_detail', bid=batch.id, rid=report.id) }}">← 返回报告</a></p>
+
+<section class="card">
+  <h3>导入注释 CSV</h3>
+  <p class="hint">
+    表头必须含 <code>CHROM,POS,REF,ALT</code>（大小写不敏感、顺序不限），并至少带一个注释列；
+    按标准位点（CHROM/POS/REF/ALT）匹配。重复位点、未知位点、同位点异值重传均<strong>整次拒绝</strong>；
+    同值重传不重复入库。单次至多 1000 行，文件 ≤ 2MB。
+  </p>
+  {% if columns %}
+  <p class="hint">本批次已固定注释列（后续导入必须保持一致）：
+    {% for c in columns %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+  <form method="post"
+        action="{{ url_for('annotations.import_annotation', bid=batch.id, rid=report.id) }}"
+        enctype="multipart/form-data">
+    <label>注释 CSV <input type="file" name="file" accept=".csv,.txt" required></label>
+    <button type="submit">导入</button>
+  </form>
+</section>
+
+<section class="card">
+  <h3>覆盖情况（{{ covered|length }} / {{ payload.groups|length }} 个标准位点已有注释）</h3>
+  {% if covered|length == payload.groups|length %}
+    <p>
+      <span class="badge ok">全部位点已覆盖</span>
+      <a href="{{ url_for('annotations.download_annotation', bid=batch.id, rid=report.id) }}">
+        下载按源 ID 展开的注释表（CSV）</a>
+    </p>
+  {% else %}
+    <p><span class="badge bad">存在缺口（{{ payload.groups|length - covered|length }} 个）</span>
+       全部位点补齐前不能下载展开表；请按下方缺口位点补传注释 CSV。</p>
+  {% endif %}
+  <table>
+    <tr>
+      <th>#</th><th>CHROM</th><th>POS</th><th>REF</th><th>ALT</th><th>源 ID</th>
+      {% for c in columns %}<th>{{ c }}</th>{% endfor %}
+      <th>状态</th>
+    </tr>
+    {% for g in payload.groups %}
+      {% set key = (g.pos, g.ref, g.alt) %}
+      {% set ann = ann_by_key.get(key) %}
+      <tr>
+        <td>{{ loop.index }}</td><td>{{ payload.chrom }}</td>
+        <td>{{ g.pos }}</td><td class="seq">{{ g.ref }}</td><td class="seq">{{ g.alt }}</td>
+        <td>{{ g.ids|join(', ') }}</td>
+        {% if ann %}
+          {% for c in columns %}<td>{{ ann.get(c, '') }}</td>{% endfor %}
+          <td><span class="badge ok">已注释</span></td>
+        {% else %}
+          {% for c in columns %}<td class="gap">缺口</td>{% endfor %}
+          <td><span class="badge bad">缺口</span></td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section class="card">
+  <h3>导入记录</h3>
+  {% if imports %}
+  <table>
+    <tr><th>#</th><th>报告</th><th>文件</th><th>状态</th><th>行数</th>
+        <th>新入库</th><th>同值跳过</th><th>时间 (UTC)</th><th>拒绝原因</th></tr>
+    {% for im in imports %}
+    <tr>
+      <td>{{ im.id }}</td>
+      <td><a href="{{ url_for('annotations.annotation_page', bid=batch.id, rid=im.report_id) }}">#{{ im.report_id }}</a></td>
+      <td>{{ im.filename }}</td>
+      <td>
+        {% if im.status == 'accepted' %}<span class="badge ok">成功</span>
+        {% else %}<span class="badge bad">整次拒绝</span>{% endif %}
+      </td>
+      <td>{{ im.rows_seen }}</td><td>{{ im.rows_inserted }}</td><td>{{ im.rows_skipped }}</td>
+      <td>{{ im.created_at }}</td>
+      <td class="error">{{ im.error or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">尚无导入记录。</p>
+  {% endif %}
+</section>
+{% endblock %}

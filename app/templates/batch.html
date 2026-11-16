@@ -26,7 +26,17 @@
     </table>
     <p>
       <a href="{{ url_for('main.report_detail', bid=batch.id, rid=report.id) }}">完整报告</a> ・
-      <a href="{{ url_for('main.report_vcf', bid=batch.id, rid=report.id) }}">下载标准 VCF</a>
+      <a href="{{ url_for('main.report_vcf', bid=batch.id, rid=report.id) }}">下载标准 VCF</a> ・
+      <a href="{{ url_for('annotations.annotation_page', bid=batch.id, rid=report.id) }}">注释导入</a>
+      {% if ann_status and ann_status[0] == ann_status[1] %}
+        ・ <a href="{{ url_for('annotations.download_annotation', bid=batch.id, rid=report.id) }}">下载按源 ID 展开的注释表</a>
+      {% endif %}
+    </p>
+    <p class="hint">
+      注释覆盖：{{ ann_status[0] }} / {{ ann_status[1] }} 个标准位点
+      {% if ann_status[0] == ann_status[1] %}<span class="badge ok">已齐全</span>
+      {% else %}<span class="badge bad">有缺口</span>{% endif %}
+      （仅沿用染色体名与完整参考序列均相同、标准位点也相同的已提交注释；其余为缺口）
     </p>
   {% elif report and report.status == 'failed' %}
     <p><span class="badge bad">当前版本组合计算失败</span>
@@ -51,6 +61,32 @@
     <label>替换 CSV（当前 v{{ cv }}）<input type="file" name="file" accept=".csv,.txt" required></label>
     <button type="submit">提交 CSV 更正</button>
   </form>
+</section>
+
+<section class="card">
+  <h3>注释导入记录</h3>
+  {% if ann_imports %}
+  <table>
+    <tr><th>#</th><th>报告</th><th>文件</th><th>状态</th><th>行数</th>
+        <th>新入库</th><th>同值跳过</th><th>时间 (UTC)</th><th>拒绝原因</th></tr>
+    {% for im in ann_imports %}
+    <tr>
+      <td>{{ im.id }}</td>
+      <td><a href="{{ url_for('annotations.annotation_page', bid=batch.id, rid=im.report_id) }}">#{{ im.report_id }}</a></td>
+      <td>{{ im.filename }}</td>
+      <td>
+        {% if im.status == 'accepted' %}<span class="badge ok">成功</span>
+        {% else %}<span class="badge bad">整次拒绝</span>{% endif %}
+      </td>
+      <td>{{ im.rows_seen }}</td><td>{{ im.rows_inserted }}</td><td>{{ im.rows_skipped }}</td>
+      <td>{{ im.created_at }}</td>
+      <td class="error">{{ im.error or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint">尚无注释导入；请在成功报告页进入注释导入页。</p>
+  {% endif %}
 </section>
 
 <section class="card">

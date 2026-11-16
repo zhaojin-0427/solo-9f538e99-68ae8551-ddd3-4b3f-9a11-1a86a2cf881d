@@ -6,6 +6,7 @@ import json
 from flask import (Blueprint, Response, abort, flash, redirect,
                    render_template, request, url_for)
 
+from . import annotate
 from .db import get_db
 
 bp = Blueprint("main", __name__)
@@ -58,6 +59,30 @@ def _read_upload(field):
     except UnicodeDecodeError:
         flash("文件必须是 UTF-8 编码的文本")
         return None
+
+
+def _annotation_status(db, report, payload):
+    """成功报告的注释覆盖摘要 (covered, total)；复用判定按固定依据即时计算。"""
+    bid = report["batch_id"]
+    chrom, ref_hash, _ = annotate.ref_basis(
+        db.execute(
+            "SELECT content FROM inputs WHERE batch_id=? AND kind='fasta' AND version=?",
+            (bid, report["fasta_version"]),
+        ).fetchone()["content"]
+    )
+    keys = {(g["pos"], g["ref"], g["alt"]) for g in payload["groups"]}
+    if not keys:
+        return 0, 0
+    n = 0
+    for g in payload["groups"]:
+        hit = db.execute(
+            "SELECT 1 FROM annotations WHERE batch_id=? AND chrom=? AND ref_hash=?"
+            " AND pos=? AND ref=? AND alt=?",
+            (bid, chrom, ref_hash, g["pos"], g["ref"], g["alt"]),
+        ).fetchone()
+        if hit:
+            n += 1
+    return n, len(keys)
 
 
 # ---------------------------------------------------------------- 页面
@@ -143,9 +168,16 @@ def batch_detail(bid):
     ).fetchall()
     payload = (json.loads(report["payload"])
                if report and report["status"] == "ok" else None)
+    ann_status = (_annotation_status(db, report, payload)
+                  if payload is not None else None)
+    ann_imports = db.execute(
+        "SELECT * FROM annotation_imports WHERE batch_id=? ORDER BY id DESC LIMIT 10",
+        (bid,),
+    ).fetchall()
     return render_template(
         "batch.html", batch=batch, fv=fv, cv=cv, report=report, payload=payload,
         computing=computing, reports=reports, jobs=jobs,
+        ann_status=ann_status, ann_imports=ann_imports,
     )
 
 
@@ -162,9 +194,11 @@ def report_detail(bid, rid):
     is_current = (report["fasta_version"] == fv and report["csv_version"] == cv)
     payload = (json.loads(report["payload"])
                if report["status"] == "ok" else None)
+    ann_status = (_annotation_status(db, report, payload)
+                  if payload is not None else None)
     return render_template(
         "report.html", batch=batch, report=report, payload=payload,
-        is_current=is_current, fv=fv, cv=cv,
+        is_current=is_current, fv=fv, cv=cv, ann_status=ann_status,
     )
 
 

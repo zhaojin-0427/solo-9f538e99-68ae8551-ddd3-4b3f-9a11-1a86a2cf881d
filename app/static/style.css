@@ -31,6 +31,7 @@ th { background: #eef2f6; }
 .badge.bad { background: #fbdfe2; color: #a01225; }
 .badge.old { background: #eceff1; color: #666; }
 .badge.run { background: #dbeafe; color: #1d4ed8; }
+.gap { color: #b00020; font-weight: 600; }
 form { margin: .6rem 0; }
 label { display: block; margin: .5rem 0; }
 input[type=file], input[type=text] { margin-left: .5rem; }

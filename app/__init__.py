@@ -6,7 +6,7 @@ import threading
 
 from flask import Flask
 
-from . import db, views, worker
+from . import annviews, db, views, worker
 
 
 def create_app(config=None):
@@ -26,6 +26,13 @@ def create_app(config=None):
 
     db.init_app(app)
     app.register_blueprint(views.bp)
+    app.register_blueprint(annviews.bp)
+
+    @app.errorhandler(409)
+    def _conflict(err):
+        from flask import render_template
+        return render_template("error.html", code=409,
+                               message=getattr(err, "description", "请求冲突")), 409
 
     if app.config["WORKER_ENABLED"]:
         t = threading.Thread(
